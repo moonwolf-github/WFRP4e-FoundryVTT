@@ -1161,7 +1161,7 @@
     "SPEC.Parry" : "Parująca",
     "SPEC.Polearm" : "Polearm",
     "SPEC.TwoHanded" : "Dwuręczna",
-    "SPEC.Blackpowder" : "Blackpowder",
+    "SPEC.Blackpowder" : "Prochowa",
     "SPEC.Bow" : "Bow",
     "SPEC.Crossbow" : "Crossbow",
     "SPEC.Entangling" : "Entangling",
@@ -1240,7 +1240,7 @@
 
     "Item Properties": "Item Properties",
     "PROPERTY.Accurate": "Accurate",
-    "PROPERTY.Blackpowder": "Blackpowder",
+    "PROPERTY.Blackpowder": "Prochowa",
     "PROPERTY.Blast": "Blast",
     "PROPERTY.Damaging": "Damaging",
     "PROPERTY.Defensive": "Defensive",
