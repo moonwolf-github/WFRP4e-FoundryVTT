@@ -46,6 +46,9 @@ WFRP4E.toTranslate = [
 "applyScope"
 ]
 
+// "Trappings" are more than "trapping" type items
+WFRP4E.trappingItems = ["trapping", "armour", "weapon", "container", "ammunition", "money"]
+
 CONFIG.controlIcons.defeated = "systems/wfrp4e/icons/defeated.png";
 
 CONFIG.JournalEntry.noteIcons = {
@@ -919,7 +922,8 @@ WFRP4E.premiumModules = {
     "wfrp4e-archives2" : "Archives of the Empire: Vol 2.",
     "wfrp4e-up-in-arms" : "Up In Arms",
     "wfrp4e-wom" : "Winds of Magic",
-    "wfrp4e-zoo" : "Imperial Zoo"
+    "wfrp4e-zoo" : "Imperial Zoo",
+    "wfrp4e-salzenmund" : "Salzenmund: City of Salt and Silver"
 }
 
 WFRP4E.trade = { 
@@ -1126,10 +1130,11 @@ WFRP4E.PrepareSystemItems = function() {
                     "terrorValue": 1,
                     "script": `
                         let skillName = game.i18n.localize("NAME.Cool");
-                        args.actor.setupSkill(skillName, {terror: true}).then(setupData =>{
-                        args.actor.basicTest(setupData).then(test => {
+                        args.actor.setupSkill(skillName, {terror: true, appendTitle : " - Terror"}).then(async test => {
+                            await test.roll();
                             let terror = this.effect.flags.wfrp4e.terrorValue;   
-                            args.actor.applyFear(terror, name)
+                            await args.actor.applyFear(terror, name)
+                            debugger
                             if (test.result.outcome == "failure")
                             {            
                                 if (test.result.SL < 0)
@@ -1137,7 +1142,6 @@ WFRP4E.PrepareSystemItems = function() {
                     
                                 args.actor.addCondition("broken", terror)
                             }
-                            })
                         })`
                 }
             }
@@ -1957,12 +1961,6 @@ WFRP4E.effectPlaceholder = {
     Example: 
     if (args.type == "skill" && args.item.name == "Athletics") args.prefillModifiers.modifier += 10`,
 
-    "prePrepareData" : 
-    `This effect is applied before any actor data is calculated.
-    args:
-
-    actor : actor who owns the effect
-    `,
     "update" : 
     `This effect runs when an actor or an embedded document is changed
     args:
@@ -2290,7 +2288,7 @@ WFRP4E.effectPlaceholder = {
     `,
 
     "opposedDefender" : 
-    `This effect is applied before an opposed test result begins calculation, as the defender.
+    `This effect is applied after an opposed test result begins calculation, as the defender.
 
     args:
 

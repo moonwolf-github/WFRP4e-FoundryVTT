@@ -339,20 +339,24 @@ export default class WFRP_Utility {
   /**
    * 
    * @param {String} itemName   Item name to be searched for 
-   * @param {String} itemType   Item's type (armour, weapon, etc.)
+   * @param {String|Array} itemType   Item's type (armour, weapon, etc.)
    */
   static async findItem(itemName, itemType) {
     itemName = itemName.trim();
+    if (typeof itemType == "string")
+    {
+      itemType = [itemType];
+    }
 
     let items
-    if (itemType)
-      items = game.items.contents.filter(i => i.type == itemType)
+    if (itemType?.length)
+      items = game.items.contents.filter(i => itemType.includes(i.type))
     else 
       items = game.items.contents
 
     // Search imported items first
     for (let i of items) {
-      if (i.name == itemName && i.type == itemType)
+      if (i.name == itemName)
         return i;
     }
     let itemList
@@ -361,7 +365,7 @@ export default class WFRP_Utility {
     for (let pack of game.wfrp4e.tags.getPacksWithTag(itemType)) {
       const index = pack.indexed ? pack.index : await pack.getIndex();
       itemList = index
-      let searchResult = itemList.find(t => t.name == itemName)
+      let searchResult = itemList.find(t => t.name == itemName && (!itemType?.length || itemType?.includes(t.type))) // if type is specified, check, otherwise it doesn't matter
       if (searchResult)
         return await pack.getDocument(searchResult._id)
     }
@@ -427,9 +431,10 @@ export default class WFRP_Utility {
 
   /**
    * Looks up advancement cost based on current advancement and type.
-   * 
-   * @param {var} currentAdvances   Number of advances currently 
-   * @param {String} type           "characteristic" or "skill"
+   *
+   * @param {Number} currentAdvances   Number of advances currently
+   * @param {String} type              "characteristic" or "skill"
+   * @param {Number} modifier          Cost modifier per advancement
    */
   static _calculateAdvCost(currentAdvances, type, modifier = 0) {
     let index = Math.floor(currentAdvances / 5);
@@ -440,33 +445,33 @@ export default class WFRP_Utility {
     return game.wfrp4e.config.xpCost[type][index] + modifier;
   }
 
-    /**
-   * Looks up advancement cost based on current advancement and type.
-   * 
-   * @param {var} currentAdvances   Number of advances currently 
-   * @param {String} type           "characteristic" or "skill"
+  /**
+   * Looks up a bulk advancement cost based on current advancement and type.
+   *
+   * @param {Number} start        Number of current advances
+   * @param {Number} end          Target number of advances
+   * @param {String} type         "characteristic" or "skill"
+   * @param {Number} modifier     Cost modifier of the skill
    */
-     static _calculateAdvRangeCost(start, end, type) {
-      let cost = 0
+  static _calculateAdvRangeCost(start, end, type, modifier = 0) {
+    let cost = 0
 
-      let multiplier = 1
+    let multiplier = 1
 
-      // If reverse advance, multiply by -1 to grant XP back
-      if (end < start)
-      {
-        multiplier = -1
-        let temp = end
-        end = start
-        start = temp;
-      }
-
-      while(start < end)
-      {
-        cost += this._calculateAdvCost(start, type)
-        start++;
-      }
-      return cost * multiplier
+    // If reverse advance, multiply by -1 to grant XP back
+    if (end < start) {
+      multiplier = -1
+      let temp = end
+      end = start
+      start = temp;
     }
+
+    while (start < end) {
+      cost += this._calculateAdvCost(start, type, modifier)
+      start++;
+    }
+    return cost * multiplier
+  }
 
   static advancementDialog(item, advances, type, actor)
   {
@@ -496,7 +501,7 @@ export default class WFRP_Utility {
       career = false;
     }
     return new Promise(resolve => {
-      let xp = this._calculateAdvRangeCost(start, end, type)
+      let xp = this._calculateAdvRangeCost(start, end, type, item.advances?.costModifier)
       if (!career)
       {
         xp *= 2;
@@ -917,12 +922,13 @@ export default class WFRP_Utility {
         let damage = $(event.currentTarget).attr("data-damage")
         html = game.i18n.format("ROLL.Misfire", { damage: damage });
       }
-      else
+      else {
         html = await game.wfrp4e.tables.formatChatRoll($(event.currentTarget).attr("data-table"),
           {
             modifier: modifier,
-            showRoll : true
+            showRoll: true
           }, $(event.currentTarget).attr("data-column"));
+      }
 
       chatOptions["content"] = html;
       chatOptions["type"] = 0;

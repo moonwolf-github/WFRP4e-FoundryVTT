@@ -1,3 +1,4 @@
+.idea/
 debug.log
 /.vs/wfrp4/v16/.suo
 /.vs/slnx.sqlite
@@ -7,3 +8,5 @@ wfrp4e.lock
 sounds/*
 foundryconfig.json
 build
+docs
+.github/workflows/pages.yml
