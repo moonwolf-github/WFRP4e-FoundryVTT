@@ -1,4 +1,5 @@
 
+import ItemDialog from "../apps/item-dialog.js";
 import WFRP_Utility from "../system/utility-wfrp4e.js";
 
 /**
@@ -235,7 +236,10 @@ export default class WFRP_Tables {
 
       // If multiple results, return a special object that has a generalized name and columns array listing the tables 
       else  if (tables.length)
-        table =  {name : tables[0].name.split("-")[0].trim(), columns: tables}
+        table =  {name : tables[0].name.split("-")[0].trim(), columns: tables, roll : async () => {
+            let table = await ItemDialog.create(tables, 1, game.i18n.localize("CHAT.ColumnPrompt"));
+            return await table[0]?.roll();
+        }}
 
       }
     WFRP_Utility.log("Find Table returns", undefined, table)
@@ -342,7 +346,7 @@ export default class WFRP_Tables {
         let item = collection.get(result.object.documentId)
         if (item && item.documentName == "Item")
         {
-          item.postItem("inf");
+          item.postItem("inf", {"flags.wfrp4e.sourceMessageId" : options.messageId});
           return null
         }
       }

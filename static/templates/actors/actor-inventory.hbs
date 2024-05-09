@@ -4,10 +4,10 @@
   <div class="encumbrance-counter-block">
     <span class="encumbrance-label">{{system.status.encumbrance.current}} /</span>
     {{#if actor.flags.autoCalcEnc}}
-      <a class="encumbrance-max auto-calc-toggle" toggle-type="encumbrance">{{system.status.encumbrance.max}}</a>
+      <a class="encumbrance-max" toggle-type="encumbrance">{{system.status.encumbrance.max}}</a>
     {{else}}
       <input type="text" name="system.status.encumbrance.max" value="{{system.status.encumbrance.max}}"
-        class="encumbrance-max auto-calc-toggle input" toggle-type="encumbrance" data-dtype="Number" />
+        class="encumbrance-max input" data-dtype="Number" />
     {{/if}}
   </div>
 </div>
@@ -56,14 +56,14 @@
 
 <ol class="inventory-list currency-list">
   {{#each items.inventory.money.items as |item i|}}
-    <li class="item" data-item-id="{{item.id}}">
+    <li class="item" data-id="{{item.id}}" data-item-id="{{item.id}}">
       <div class="content">
         <div class="item-name currency-name item-dropdown">
           <div class="image" style="background-image: url({{item.img}})"></div>
           <a class="name">{{item.name}}</a>
         </div>
         <a class="quantity quantity-click">{{item.quantity.value}}</a>
-        <span class="weight">{{item.encumbrance.value}}</span>
+        <span class="weight">{{item.encumbrance.total}}</span>
         {{#if ../document.isOwner}}
           <div class="item-controls">
         {{else}}
@@ -87,6 +87,9 @@
       {{else}}
         <span class="name" id="currency-name">{{section.label}}</span>
       {{/if}}
+
+      {{#unless section.collapsed}}
+
       {{#if section.toggle}}
         <span class="item-toggle">{{section.toggleName}}</span>
       {{/if}}
@@ -94,6 +97,8 @@
       <a class="quantity aggregate" data-type="{{section.dataType}}">{{localize "SHEET.QtyAbbrev"}}.</a>
 
       <span class="weight">{{localize "SHEET.EncAbbrev"}}.</span>
+      {{/unless}}
+      
       {{#if ../document.isOwner}}
         <div class="item-controls">
       {{else}}
@@ -115,7 +120,7 @@
       {{#if section.collapsed}}
           <div class="collapsed-icons item-list {{#if section.toggle}}has-toggle{{/if}}">
           {{#each section.items as |item i|}}
-            <div class="item" data-item-id="{{item.id}}">
+            <div class="item" data-id="{{item.id}}">
               <a class="item-edit" data-tooltip="{{item.name}}"><img src="{{item.img}}"></a>
               <div class="toggle">
                 {{#if section.toggle}}
@@ -131,7 +136,7 @@
         </div>
       {{else}}
         {{#each section.items as |item i|}}
-          <li class="item" data-item-id="{{item.id}}">
+          <li class="item" data-id="{{item.id}}" data-item-id="{{item.id}}">
             <div class="content">
               {{#if section.toggle}}
                 <div class="item-name item-dropdown">
@@ -152,7 +157,7 @@
 
             <a class="quantity quantity-click">{{item.quantity.value}}</a>
 
-            <span class="weight">{{item.encumbrance.value}}</span>
+            <span class="weight">{{item.encumbrance.total}}</span>
             {{#if ../../document.isOwner}}
               <div class="item-controls">
             {{else}}
@@ -202,14 +207,14 @@
     {{#if items.inventory.ingredients.collapsed}}
       <div class="collapsed-icons item-list">
         {{#each items.inventory.ingredients.items as |item i|}}
-          <div class="item" data-item-id="{{item.id}}">
+          <div class="item" data-id="{{item.id}}" data-item-id="{{item.id}}">
             <a class="item-edit" data-tooltip="{{item.name}}"><img src="{{item.img}}"></a>
           </div>
         {{/each}}
       </div>
     {{else}}
       {{#each items.inventory.ingredients.items as |item i|}}
-        <li class="item" data-item-id="{{item.id}}">
+        <li class="item" data-id="{{item.id}}" data-item-id="{{item.id}}">
           <div class="content">
             <div id="spell-name" class="item-name item-dropdown">
               <div class="image" style="background-image: url({{item.img}})"></div>
@@ -217,7 +222,7 @@
             </div>
 
             <div class="spell-selector selector">
-              <select data-item-id="{{item.id}}" data-dtype="{{item.spellIngredient.type}}">
+              <select data-id="{{item.id}}" data-item-id="{{item.id}}" data-dtype="{{item.spellIngredient.type}}">
                 {{#select item.spellIngredient.value}}
                   <option value="0">-</option>
                   {{#each ../items.grimoire.lore as |spell s|}}
@@ -228,7 +233,7 @@
             </div>
 
             <span class="quantity quantity-click">{{item.quantity.value}}</span>
-            <span class="weight">{{item.encumbrance.value}}</span>
+            <span class="weight">{{item.encumbrance.total}}</span>
             {{#if ../document.isOwner}}
               <div class="item-controls">
             {{else}}
@@ -252,16 +257,16 @@
 
       {{> systems/wfrp4e/templates/partials/item-container.hbs level=1 pack=pack root=true owner=../document.isOwner}}
 
-      {{#each pack.packsInside as |pack p|}}
+      {{#each pack.system.packsInside as |pack p|}}
         {{> systems/wfrp4e/templates/partials/item-container.hbs level=2 pack=pack root=false owner=../../document.isOwner}}
 
-        {{#each pack.packsInside as |pack p|}}
+        {{#each pack.system.packsInside as |pack p|}}
           {{> systems/wfrp4e/templates/partials/item-container.hbs level=3 pack=pack root=false owner=../../../document.isOwner}}
 
-          {{#each pack.packsInside as |pack p|}}
+          {{#each pack.system.packsInside as |pack p|}}
             {{> systems/wfrp4e/templates/partials/item-container.hbs level=4 pack=pack root=false owner=../../../../document.isOwner}}
 
-            {{#each pack.packsInside as |pack p|}}
+            {{#each pack.system.packsInside as |pack p|}}
               {{> systems/wfrp4e/templates/partials/item-container.hbs level=5 pack=pack root=false owner=../../../../../document.isOwner}}
             {{/each}}
 

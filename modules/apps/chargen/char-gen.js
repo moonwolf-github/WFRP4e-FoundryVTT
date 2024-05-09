@@ -5,15 +5,16 @@ import { AttributesStage } from "./attributes";
 import { SkillsTalentsStage } from "./skills-talents";
 import { TrappingStage } from "./trappings";
 import { DetailsStage } from "./details";
+import ItemWfrp4e from "../../item/item-wfrp4e.js";
 
 
 /**
  * This class is the center of character generation through the chat prompts (started with /char)
  */
 export default class CharGenWfrp4e extends FormApplication {
-  constructor(...args) {
-    super(...args);
-    this.data = {
+  constructor(existing={}, options) {
+    super(null, options);
+    this.data = existing?.data || {
       species: null,
       subspecies: null,
       exp: {
@@ -101,6 +102,20 @@ export default class CharGenWfrp4e extends FormApplication {
         complete: false
       }
     ]
+
+    // If using existing data, record which stages were already complete
+    if (existing?.stages)
+    {
+      for(let existingStage of existing.stages)
+      {
+        let stage = this.stages.find(s => s.key == existingStage.key)
+        if (stage)
+        {
+          stage.complete = existingStage.complete;
+        }
+      }
+    }
+
     this.actor = {type: "character", system: foundry.utils.deepClone(game.system.model.Actor.character), items: [] }
 
     if (!game.user.isGM)
@@ -191,6 +206,10 @@ export default class CharGenWfrp4e extends FormApplication {
     this.data.fate.total = this.data.fate.allotted + this.data.fate.base
     this.data.resilience.total = this.data.resilience.allotted + this.data.resilience.base
 
+    this.stages.forEach(stage => {
+      stage.title ??= stage.class.title;
+    })
+
     return {
       characteristics,
       speciesDisplay : this.data.subspecies ? `${game.wfrp4e.config.species[this.data.species]} (${game.wfrp4e.config.subspecies[this.data.species]?.[this.data.subspecies].name})` :  game.wfrp4e.config.species[this.data.species],
@@ -204,6 +223,37 @@ export default class CharGenWfrp4e extends FormApplication {
     }
   }
 
+  static async start()
+  {
+    let existing = localStorage.getItem("wfrp4e-chargen");
+    if (existing)
+    {
+      let useExisting = await Dialog.wait({
+        title : game.i18n.localize("CHARGEN.UseExistingData"),
+        content : game.i18n.localize("CHARGEN.UseExistingDataContent"),
+        buttons : {
+          yes : {
+            label : game.i18n.localize("Yes"),
+            callback : () => {
+              return true;
+            }
+          },
+          no : {
+            label : game.i18n.localize("No"),
+            callback : () => {
+              return false
+            }
+          }
+        }
+      })
+
+      return new this(useExisting ? JSON.parse(existing) : null).render(true);
+    }
+    else
+    {
+      return new this().render(true);
+    }
+  }
 
   async _getStageHTML()
   {
@@ -293,29 +343,53 @@ export default class CharGenWfrp4e extends FormApplication {
       mergeObject(this.actor, expandObject(this.data.misc), {overwrite : true})
 
 
-      // Don't add items inline, as that will not create active effects
-      // Except skills, as new characters without items create blank skills
-      // We want to add ours to prevent duplicates
-      let items = this.actor.items;
-      this.actor.items = this.actor.items.filter(i => i.type == "skill");
-      this.actor.items = this.actor.items.filter(i => i.system.advances.value > 0 || // Don't add advanced skills that don't have advancements,
-        (i.system.advanced.value == "bsc" && i.system.grouped.value == "noSpec") || // Don't add specialisations that don't have advancements
-        (i.system.advanced.value == "bsc" && i.system.grouped.value == "isSpec" && !i.name.includes("(") && !i.name.includes(")")))
-
-      items = items.filter(i => i.type != "skill")
+      this.actor.items = this.actor.items.filter(i => {
+        if (i.type == "skill")
+        {
+          // Include any skill with advances
+          if (i.system.advances.value > 0)
+          {
+            return true
+          }
+          // or include any basic skill that isn't a specialization
+          if (i.system.advanced.value == "bsc" && i.system.grouped.value == "noSpec")
+          {
+            return true;
+          }
+          // or include any basic skill that IS a specialisation (but not specialised, i.e. Art, or Ride)
+          if(i.system.advanced.value == "bsc" && i.system.grouped.value == "isSpec" && !i.name.includes("(") && !i.name.includes(")")) 
+          {
+            return true
+          }
+          else return false;
+        }
+        else // Return true if any other item besides skills
+        {
+          return true
+        };
+      }).map(i => {
+        return i instanceof ItemWfrp4e ? i.toObject() : i
+      })
 
       if (game.user.isGM || game.settings.get("core", "permissions").ACTOR_CREATE.includes(game.user.role))
       {
         let document = await Actor.create(this.actor);
-        document.createEmbeddedDocuments("Item", items);
         document.sheet.render(true);
+        localStorage.removeItem("wfrp4e-chargen")
       }
       else {
-        const payload =  {id : game.user.id, data : this.actor, items : items.map(i => i instanceof Item ? i.toObject() : i)}
-        await WFRP_Utility.awaitSocket(game.user, "createActor", payload, "Creating actor");
-        let actor = game.actors.getName(this.actor.name)
+        // Create temp actor to handle any immediate scripts
+        let tempActor = await Actor.create(this.actor, {temporary: true})
+        for(let i of tempActor.items.contents)
+        {
+          await i._preCreate(i._source, {}, game.user.id);
+        }
+        const payload =  {id : game.user.id, data : tempActor.toObject()}
+        let id = await game.wfrp4e.socket.executeOnUserAndWait("GM", "createActor", payload);
+        let actor = game.actors.get(id);
         if (actor && actor.isOwner) {
           actor.sheet.render(true)
+          localStorage.removeItem("wfrp4e-chargen")
         }
       }
     }
@@ -327,7 +401,9 @@ export default class CharGenWfrp4e extends FormApplication {
 
   complete(stageIndex) {
     this.stages[stageIndex].complete = true;
-    this.render(true)
+    Hooks.call("wfrp4e:chargenStageCompleted", this, this.stages[stageIndex]);
+    localStorage.setItem("wfrp4e-chargen", JSON.stringify({data : this.data, stages : this.stages}));
+    this.render(true);
   }
 
   canStartStage(stage)
@@ -340,19 +416,17 @@ export default class CharGenWfrp4e extends FormApplication {
 
   }
 
-  addStage(stage, index)
-  {
-    let stageObj = stage.stageData()
-    if (index == undefined)
-    {
+  addStage(stage, index, stageData = {}) {
+    let stageObj = stage.stageData();
+    stageObj = foundry.utils.mergeObject(stageObj, stageData);
+
+    if (index === undefined) {
       this.stages.push(stageObj)
-    }
-    else { // Insert new stage in specified index
-      let newStages = []
-      newStages = this.stages.slice(0, index)
-      newStages.push(stageObj)
-      newStages = newStages.concat(this.stages.slice(index))
-      this.stages = newStages
+    } else { // Insert new stage in specified index
+      let newStages = this.stages.slice(0, index);
+      newStages.push(stageObj);
+      newStages = newStages.concat(this.stages.slice(index));
+      this.stages = newStages;
     }
   }
 

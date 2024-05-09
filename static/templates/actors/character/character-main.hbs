@@ -3,9 +3,9 @@
     <div class="table-header table-row">
       <div class="table-header"></div>
       {{#each system.characteristics as |ch c|}}
-      <div title="{{localize ch.label}}" class="table-header">
+      <div title="{{configLookup "characteristics" c}}" class="table-header">
         <div class="header-block">
-          {{localize ch.abrev}}
+          {{configLookup "characteristicsAbbrev" c}}
           {{#if ch.complete}}
           <a class="advancement-indicator" title="{{ch.cost}} Exp" data-target="{{c}}">&#10003;</a>
           {{else if ch.career}}
@@ -79,9 +79,9 @@
     <div class="move-section">
       <div class="move-value">
         {{#if actor.flags.autoCalcWalk}}
-        <a class="auto-calc-toggle" toggle-type="walk">{{system.details.move.walk}} {{localize "yds"}}</a>
+        <a >{{system.details.move.walk}} {{localize "yds"}}</a>
         {{else}}
-        <input class="auto-calc-toggle" toggle-type="walk" name="system.details.move.walk" type="text" value="{{system.details.move.walk}}" data-dtype="String">
+        <input  name="system.details.move.walk" type="text" value="{{system.details.move.walk}}" data-dtype="String">
         {{/if}}
       </div>
       <div class="move-name">
@@ -91,9 +91,9 @@
     <div class="move-section">
       <div class="move-value">
         {{#if actor.flags.autoCalcRun}}
-        <a class="auto-calc-toggle" toggle-type="run">{{system.details.move.run}} {{localize "yds"}}</a>
+        <a >{{system.details.move.run}} {{localize "yds"}}</a>
         {{else}}
-        <input class="auto-calc-toggle" toggle-type="run" name="system.details.move.run" type="text"
+        <input  name="system.details.move.run" type="text"
           value="{{system.details.move.run}}" data-dtype="String">
         {{/if}}
       </div>
@@ -142,9 +142,9 @@
         </div>
         <div id="wounds-max">
           {{#if actor.flags.autoCalcWounds}}
-          <a class="auto-calc-toggle" toggle-type="wounds">{{system.status.wounds.max}}</a>
+          <a toggle-type="wounds">{{system.status.wounds.max}}</a>
           {{else}}
-          <input class="auto-calc-toggle" toggle-type="wounds" name="system.status.wounds.max" type="text"
+          <input name="system.status.wounds.max" type="text"
             value="{{system.status.wounds.max}}" data-dtype="{{system.status.wounds.type}}">
           {{/if}}
         </div>
@@ -166,9 +166,9 @@
         </div>
         <div id="criticalWounds-max">
           {{#if actor.flags.autoCalcCritW}}
-          <a class="auto-calc-toggle" toggle-type="critW">{{system.status.criticalWounds.max}}</a>
+          <a toggle-type="critW">{{system.status.criticalWounds.max}}</a>
           {{else}}
-          <input class="auto-calc-toggle" toggle-type="critW" name="system.status.criticalWounds.max" type="text"
+          <input name="system.status.criticalWounds.max" type="text"
             value="{{system.status.criticalWounds.max}}">
           {{/if}}
         </div>
@@ -188,9 +188,9 @@
         </div>
         <div id="corruption-max">
           {{#if actor.flags.autoCalcCorruption}}
-          <a class="auto-calc-toggle" toggle-type="corruption">{{system.status.corruption.max}}</a>
+          <a toggle-type="corruption">{{system.status.corruption.max}}</a>
           {{else}}
-          <input class="auto-calc-toggle" toggle-type="corruption" name="system.status.corruption.max" type="text" value="{{system.status.corruption.max}}" data-dtype="Number">
+          <input name="system.status.corruption.max" type="text" value="{{system.status.corruption.max}}" data-dtype="Number">
           {{/if}}
         </div>
       </div>
@@ -237,7 +237,7 @@
 
   <ol class="inventory-list save-scroll">
     {{#each items.careers as |item i|}}
-    <li class="item career-item" data-item-id="{{item.id}}">
+    <li class="item career-item" data-id="{{item.id}}">
       <div class="content">
         <div class="item-name item-dropdown">
           <div class="image" style="background-image: url({{item.img}})"></div>

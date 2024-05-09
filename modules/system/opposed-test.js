@@ -66,7 +66,7 @@ export default class OpposedTest {
 */
   checkPostModifiers() {
 
-    let didModifyAttacker = false, didModifyDefender = false;
+    let didModifyAttacker = false;
 
     let modifiers = {
       attacker: {
@@ -99,16 +99,7 @@ export default class OpposedTest {
       }
     }
 
-
-    //Apply the modifiers
-    if (didModifyAttacker || didModifyDefender) {
-      modifiers.message.push(game.i18n.localize('CHAT.TestModifiers.FinalModifiersTitle'))
-      if (didModifyAttacker)
-        modifiers.message.push(`${game.i18n.format(game.i18n.localize('CHAT.TestModifiers.FinalModifiers'), { target: modifiers.attacker.target, sl: modifiers.attacker.SL, name: this.attackerTest.actor.prototypeToken.name })}`)
-      if (didModifyDefender)
-        modifiers.message.push(`${game.i18n.format(game.i18n.localize('CHAT.TestModifiers.FinalModifiers'), { target: modifiers.defender.target, sl: modifiers.defender.SL, name: this.defenderTest.actor.prototypeToken.name })}`)
-    }
-    return mergeObject(modifiers, { didModifyAttacker, didModifyDefender });
+    return mergeObject(modifiers, { didModifyAttacker });
   }
 
   /**
@@ -134,8 +125,10 @@ export default class OpposedTest {
       let defender = this.defenderTest.actor
 
 
-      await attacker.runEffects("preOpposedAttacker", { attackerTest, defenderTest, opposedTest: this })
-      await defender.runEffects("preOpposedDefender", { attackerTest, defenderTest, opposedTest: this })
+      await Promise.all(attacker.runScripts("preOpposedAttacker", { attackerTest, defenderTest, opposedTest: this }))
+      await Promise.all(attackerTest.item?.runScripts?.("preOpposedAttacker", { attackerTest, defenderTest, opposedTest: this }) ?? [])
+      await Promise.all(defender.runScripts("preOpposedDefender", { attackerTest, defenderTest, opposedTest: this }))
+      await Promise.all(defenderTest.item?.runScripts?.("preOpposedDefender", { attackerTest, defenderTest, opposedTest: this }) ?? [])
 
 
       opposeResult.modifiers = this.checkPostModifiers(attackerTest, defenderTest);
@@ -149,16 +142,10 @@ export default class OpposedTest {
         await attackerTest.renderRollCard();
       }
 
-      // Redo the test with modifiers
-      if (opposeResult.modifiers.didModifyDefender) {
-        defenderTest.preData.roll = defenderTest.result.roll
-        defenderTest.preData.postOpposedModifiers = opposeResult.modifiers.defender
-        defenderTest.preData.hitloc = defenderTest.result.hitloc?.roll;
-        await defenderTest.computeResult();
-        await defenderTest.renderRollCard();
-      }
-      else if (defenderTest.context.unopposed)
+      if (defenderTest.context.unopposed)
+      {
         await defenderTest.roll();
+      }
 
       opposeResult.other = opposeResult.other.concat(opposeResult.modifiers.message);
 
@@ -187,20 +174,12 @@ export default class OpposedTest {
             value: null
           };
         }
-        if (attackerTest.hitloc) {
-          // Remap the hit location roll to the defender's hit location table, note the change if it is different
-          let remappedHitLoc = await game.wfrp4e.tables.rollTable(defender.details.hitLocationTable.value, { lookup: attackerTest.hitloc.roll, hideDSN: true })
-          if (remappedHitLoc.result != attackerTest.hitloc.result) {
-            remappedHitLoc.description = game.i18n.localize(remappedHitLoc.description) + " (Remapped)";
-            remappedHitLoc.remapped = true;
-            attackerTest.result.hitloc = remappedHitLoc
-          }
-
-          opposeResult.hitloc = {
-            description: `<b>${game.i18n.localize("ROLL.HitLocation")}</b>: ${attackerTest.hitloc.description}`,
-            value: attackerTest.hitloc.result
-          };
+        if (attackerTest.hitloc) 
+        {
+          this.findHitLocation();
         }
+
+        opposeResult.breakdown.formatted = this.formatBreakdown();
 
         try // SOUND
         {
@@ -243,44 +222,19 @@ export default class OpposedTest {
         }
         catch (e) { WFRP_Utility.log("Sound Context Error: " + e, true) } // Ignore sound errors
 
-
         opposeResult.winner = "defender"
         opposeResult.differenceSL = defenderSL - attackerSL;
-
-        let riposte;
-        if (defenderTest.weapon)
-          riposte = defenderTest.result.riposte && !!defenderTest.weapon.properties.qualities.fast
-
-        if (defenderTest.result.champion || riposte) {
-          let temp = duplicate(defenderTest.data);
-          this.defenderTest = game.wfrp4e.rolls.TestWFRP.recreate(attackerTest.data);
-          this.attackerTest = game.wfrp4e.rolls.TestWFRP.recreate(temp)
-          this.data.attackerTestData = this.attackerTest.data
-          this.data.defenderTestData = this.defenderTest.data
-          let damage = await this.calculateOpposedDamage();
-          opposeResult.damage = {
-            description: `<b>${game.i18n.localize("Damage")} (${riposte ? game.i18n.localize("NAME.Riposte") : game.i18n.localize("NAME.Champion")})</b>: ${damage}`,
-            value: damage
-          };
-          let hitloc = await game.wfrp4e.tables.rollTable(defenderTest.actor.details.hitLocationTable.value, {hideDSN : true})
-
-          opposeResult.hitloc = {
-            description: `<b>${game.i18n.localize("ROLL.HitLocation")}</b>: ${hitloc.description}`,
-            value: hitloc.result
-          };
-          opposeResult.swapped = true;
-
-          soundContext = { item: { type: "weapon" }, action: "hit" }
-        }
       }
 
-      await attacker.runEffects("opposedAttacker", { opposedTest: this, attackerTest, defenderTest })
-      if (defender)
-        await defender.runEffects("opposedDefender", { opposedTest: this, attackerTest, defenderTest })
+      await Promise.all(attacker.runScripts("opposedAttacker", { opposedTest: this, attackerTest, defenderTest }))
+      await Promise.all(attackerTest.item?.runScripts?.("opposedAttacker", { opposedTest: this, attackerTest, defenderTest }) ?? [])
+      if (defender) {
+        await Promise.all(defender.runScripts("opposedDefender", { opposedTest: this, attackerTest, defenderTest}))
+        await Promise.all(defenderTest.item?.runScripts?.("opposedDefender", { opposedTest: this, attackerTest, defenderTest }) ?? [])
+      }
 
       Hooks.call("wfrp4e:opposedTestResult", this, attackerTest, defenderTest)
       WFRP_Audio.PlayContextAudio(soundContext)
-
       return opposeResult
     }
     catch (err) {
@@ -289,18 +243,18 @@ export default class OpposedTest {
     }
   }
 
-
   async calculateOpposedDamage() {
     // Calculate size damage multiplier 
     let damageMultiplier = 1;
     let sizeDiff
+    let breakdown = {other : []};
 
     if (this.attackerTest.actor.type == "vehicle" || this.defenderTest.actor.type == "vehicle")
       sizeDiff = 0;
     else 
       sizeDiff = game.wfrp4e.config.actorSizeNums[this.attackerTest.size] - game.wfrp4e.config.actorSizeNums[this.defenderTest.size]
 
-    if (this.attackerTest.actor.getItemTypes("trait").find(i => i.name == game.i18n.localize("NAME.Swarm") && i.included) || this.defenderTest.actor.getItemTypes("trait").find(i => i.name == game.i18n.localize("NAME.Swarm")))
+    if (this.attackerTest.actor.has(game.i18n.localize("NAME.Swarm")) || this.defenderTest.actor.has(game.i18n.localize("NAME.Swarm")))
       sizeDiff = 0
 
     if (game.settings.get("wfrp4e", "mooSizeDamage"))
@@ -330,6 +284,9 @@ export default class OpposedTest {
     }
     //@/HOUSE
 
+    breakdown.base = damage + this.attackerTest.result.additionalDamage; 
+    breakdown.opposedSL = opposedSL
+
     // Winds of Magic overcast
     if (this.attackerTest instanceof WomCastTest) {	
       damage += (this.attackerTest.result.additionalDamage || 0);	
@@ -341,7 +298,7 @@ export default class OpposedTest {
     if (game.settings.get("wfrp4e", "mooRangedDamage"))
     {
       game.wfrp4e.utility.logHomebrew("mooRangedDamage")
-      if (this.attackerTest.item && this.attackerTest.item.attackType == "ranged")
+      if (this.attackerTest.item && this.attackerTest.item.isRanged)
       {
         damage -= (Math.floor(this.attackerTest.targetModifiers / 10) || 0)
         if (damage < 0)
@@ -350,8 +307,11 @@ export default class OpposedTest {
     }
     //@/HOUSE
 
-    let effectArgs = { damage, damageMultiplier, sizeDiff, opposedTest: this, addDamaging : false, addImpact : false }
-    await this.attackerTest.actor.runEffects("calculateOpposedDamage", effectArgs);
+
+
+    let effectArgs = { damage, damageMultiplier, sizeDiff, opposedTest: this, addDamaging : false, addImpact : false, breakdown }
+    await Promise.all(this.attackerTest.actor.runScripts("calculateOpposedDamage", effectArgs));
+    await Promise.all(this.attackerTest.item?.runScripts("calculateOpposedDamage", effectArgs));
     ({ damage, damageMultiplier, sizeDiff } = effectArgs)
 
     let addDamaging = effectArgs.addDamaging || false;
@@ -388,6 +348,7 @@ export default class OpposedTest {
         unitValue = 10;
 
       if (unitValue > opposedSL) {
+        breakdown.damaging = unitValue;
         damage = damage - opposedSL + unitValue; // replace opposedSL with unit value
       }
     }
@@ -396,10 +357,99 @@ export default class OpposedTest {
       if (unitValue === 0)
         unitValue = 10;
       damage += unitValue
+      breakdown.impact = unitValue;
     }
     this.result.damaging = hasDamaging || addDamaging
     this.result.impact = hasImpact || addImpact
+
+    breakdown.multiplier = damageMultiplier
+    this.result.breakdown = breakdown;
     return damage * damageMultiplier
+  }
+
+  async findHitLocation()
+  {
+      // If an attacker's test hit location is "rArm" this actually means "primary arm"
+      // So convert "rArm" to "rArm" or "lArm" depending on the actor's settings 
+      let attackerHitloc = foundry.utils.deepClone(this.attackerTest.hitloc)
+      attackerHitloc.result = this.defender.convertHitLoc(attackerHitloc.result)
+      attackerHitloc.description = game.wfrp4e.config.locations[attackerHitloc.result];
+
+      // Remap the hit location roll to the defender's hit location table, note the change if it is different
+      let remappedHitLoc = await game.wfrp4e.tables.rollTable(this.defender.details.hitLocationTable.value, { lookup: attackerHitloc.roll, hideDSN: true })
+      if (remappedHitLoc.result != attackerHitloc.result) {
+        remappedHitLoc.description = game.i18n.localize(remappedHitLoc.description) + " (Remapped)";
+        remappedHitLoc.remapped = true;
+        this.attackerTest.result.hitloc = remappedHitLoc
+      }
+
+      this.result.hitloc = {
+        description: `<b>${game.i18n.localize("ROLL.HitLocation")}</b>: ${attackerHitloc.description}`,
+        value: attackerHitloc.result
+      };
+  }
+
+  async swap(label)
+  {
+      let temp = duplicate(this.defenderTest.data);
+      this.defenderTest = game.wfrp4e.rolls.TestWFRP.recreate(this.attackerTest.data);
+      this.attackerTest = game.wfrp4e.rolls.TestWFRP.recreate(temp)
+      this.data.attackerTestData = this.attackerTest.data
+      this.data.defenderTestData = this.defenderTest.data
+      let damage = await this.calculateOpposedDamage();
+      this.result.damage = {
+        description: `<b>${game.i18n.localize("Damage")} (${label})</b>: ${damage}`,
+        value: damage
+      };
+      this.findHitLocation();
+      this.result.swapped = true;
+
+      soundContext = { item: { type: "weapon" }, action: "hit" }
+  }
+
+  formatBreakdown()
+  {
+    let string = "";
+    try 
+    {
+      let breakdown = this.result.breakdown;
+      let accumulator = Number(breakdown.base);
+
+      string += `<p><strong>${game.i18n.localize("BREAKDOWN.AttackerBase")}</strong>: ${breakdown.base}</p>`;
+      if (breakdown.damaging) 
+      {
+        accumulator += Number(breakdown.damaging);
+        string += `<p><strong>${game.i18n.localize("PROPERTY.Damaging")}</strong>: +${breakdown.damaging} (${accumulator})</p>`;
+      }
+      else if (breakdown.opposedSL) 
+      {
+        accumulator += Number(breakdown.opposedSL);
+        string += `<p><strong>${game.i18n.localize("BREAKDOWN.OpposedSL")}</strong>: +${breakdown.opposedSL} (${accumulator})</p>`;
+      }
+      if (breakdown.impact) 
+      {
+        accumulator += Number(breakdown.impact);
+        string += `<p><strong>${game.i18n.localize("PROPERTY.Impact")}</strong>: +${breakdown.impact} (${accumulator})</p>`;
+      }
+
+      for (let source of breakdown.other) 
+      {
+        accumulator += Number(source.value);
+        string += `<p><strong>${source.label}</strong>: ${HandlebarsHelpers.numberFormat(source.value, { hash: { sign: true } })} (${accumulator})</p>`
+      }
+
+      if (breakdown.multiplier > 1) 
+      {
+        accumulator *= breakdown.multiplier
+        string += `<p><strong>${game.i18n.localize("BREAKDOWN.Multiplier")}</strong>: ×${breakdown.multiplier} (${accumulator})</p>`
+      }
+    }
+    catch (e) 
+    {
+      console.error(`Error generating formatted breakdown: ${e}`, this);
+    }
+
+    return string;
   }
 
 }
